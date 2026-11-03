@@ -38,8 +38,9 @@ CYCLES = {
     "2025-H1": date(2025, 6, 30),
     "2025-H2": date(2025, 12, 31),
 }
-# Demo only: nudges review ratings up for some channels so the hiring-channel metric
-# has a pattern to show. It is invented, not based on any real data.
+# Demo only: nudges review ratings up for some channels. It is invented, not based on any real
+# data. With the default 150 people the samples are too small for it to show reliably (random
+# noise wins); at a few thousand people it shows clearly. That is the point of the metric's caveat.
 CHANNEL_RATING_BONUS = {"referral": 0.5, "university": 0.2}
 PAYROLL_FROM = date(2025, 7, 1)  # keep the file small: only the last 12 months of pay
 
