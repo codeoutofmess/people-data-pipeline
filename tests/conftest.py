@@ -14,8 +14,7 @@ TEST_URL = os.environ.get("TEST_DATABASE_URL", "postgresql:///people_test")
 def conn():
     """A connection to an empty test database with all tables created."""
     with psycopg.connect(TEST_URL) as c:
-        c.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-        db.init_db(c)
+        db.init_db(c, reset=True)
         yield c
 
 
