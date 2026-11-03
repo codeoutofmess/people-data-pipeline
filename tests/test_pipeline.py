@@ -1,18 +1,11 @@
+import psycopg
 import pytest
 
 from people import cli, pipeline
-from people.generate import generate
 
 from .conftest import TEST_URL
 
 DATA_TABLES = ["people", "applications", "employees", "pay_records", "reviews"]
-
-
-@pytest.fixture
-def raw_dir(tmp_path):
-    broken = generate(tmp_path, seed=42)
-    assert all(n == 5 for n in broken.values())
-    return tmp_path
 
 
 def table_counts(conn) -> dict[str, int]:
@@ -65,6 +58,28 @@ def test_rerun_picks_up_a_corrected_value(conn, raw_dir):
     pipeline.run(conn, raw_dir)
     role = conn.execute("SELECT role FROM employees WHERE person_id = 'P0002'").fetchone()[0]
     assert role == "Head of Engineering"
+
+
+def test_failed_run_leaves_no_half_loaded_data(conn, raw_dir, monkeypatch):
+    pipeline.run(conn, raw_dir)
+    before = table_counts(conn)
+
+    # Change a value in the source, then make the LAST load step crash. By then the earlier
+    # upserts (people, applications, employees, pay) have already run inside the transaction.
+    path = raw_dir / "hr_records.csv"
+    path.write_text(path.read_text().replace("Engineering Lead", "Head of Engineering", 1))
+    monkeypatch.setattr(pipeline, "UPSERT_REVIEW", "INSERT INTO no_such_table VALUES (1)")
+
+    # Same pattern the CLI uses: leaving the `with` block on an error rolls the transaction back.
+    with pytest.raises(psycopg.errors.UndefinedTable):
+        with psycopg.connect(TEST_URL) as other:
+            pipeline.run(other, raw_dir)
+
+    assert table_counts(conn) == before
+    role = conn.execute("SELECT role FROM employees WHERE person_id = 'P0002'").fetchone()[0]
+    assert role == "Engineering Lead", "the change from the failed run must not be saved"
+    assert conn.execute("SELECT count(*) FROM pipeline_runs").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM quarantine").fetchone()[0] == 20
 
 
 def test_run_and_report_commands(conn, raw_dir, monkeypatch, capsys):
