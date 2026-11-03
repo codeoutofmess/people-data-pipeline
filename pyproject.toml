@@ -5,6 +5,7 @@ description = "Learning project: a tested pipeline and small API over synthetic 
 requires-python = ">=3.12"
 dependencies = [
     "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
 ]
 
 [project.scripts]

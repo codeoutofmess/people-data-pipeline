@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from people import db, generate
+from people import db, generate, log, pipeline
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -16,7 +16,13 @@ def main(argv: list[str] | None = None) -> None:
     gen.add_argument("--seed", type=int, default=42)
     gen.add_argument("--out", type=Path, default=Path("data/raw"))
 
+    run = sub.add_parser("run", help="validate the CSV files and load them into Postgres")
+    run.add_argument("--raw", type=Path, default=Path("data/raw"))
+
+    sub.add_parser("report", help="print the latest run's data-quality summary")
+
     args = parser.parse_args(argv)
+    log.setup()
 
     if args.command == "init-db":
         with db.connect() as conn:
@@ -25,3 +31,10 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "generate":
         broken = generate.generate(args.out, seed=args.seed)
         print(f"Wrote 4 files to {args.out}/ (seed {args.seed}). Broken rows added: {broken}")
+    elif args.command == "run":
+        with db.connect() as conn:
+            pipeline.run(conn, args.raw)
+            print(pipeline.report(conn))
+    elif args.command == "report":
+        with db.connect() as conn:
+            print(pipeline.report(conn))
