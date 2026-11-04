@@ -1,0 +1,8 @@
+# Actions are pinned to commit SHAs, which never update on their own.
+# Dependabot opens a pull request when a newer release of an action exists.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

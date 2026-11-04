@@ -10,7 +10,8 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="people", description="Synthetic people-data pipeline.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("init-db", help="create the database tables")
+    init = sub.add_parser("init-db", help="create the database tables")
+    init.add_argument("--reset", action="store_true", help="DELETE all tables and data first")
 
     gen = sub.add_parser("generate", help="write the fake source CSV files")
     gen.add_argument("--seed", type=int, default=42)
@@ -33,8 +34,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "init-db":
         with db.connect() as conn:
-            db.init_db(conn)
-        print("Tables created.")
+            db.init_db(conn, reset=args.reset)
+        print("Database wiped and tables recreated." if args.reset else "Tables created.")
     elif args.command == "generate":
         broken = generate.generate(args.out, seed=args.seed)
         print(f"Wrote 4 files to {args.out}/ (seed {args.seed}). Broken rows added: {broken}")
