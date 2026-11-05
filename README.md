@@ -4,7 +4,7 @@ A learning project: a small "people data" backend built on **synthetic data only
 Fake hiring, HR, payroll and performance-review files go through a tested Python pipeline
 into one Postgres database, with a small access-controlled API on top.
 
-It is a generic interpretation for practice, not any real company's system. It has never
+It is a practice project, not any real company's system. It has never
 handled real people's data, and it is not production software.
 
 ## Architecture
