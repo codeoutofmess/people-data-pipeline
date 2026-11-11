@@ -92,3 +92,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
     outcome   text NOT NULL CHECK (outcome IN ('allowed', 'denied')),
     reason    text                   -- why a person's record was opened; empty for failed logins
 );
+
+-- The audit log is append-only: rows can be added but never changed or deleted.
+-- shortcut: a database owner can still drop these triggers. For real tamper-proofing, also give the
+-- app an insert-only database role and copy the log somewhere the app cannot write.
+CREATE OR REPLACE FUNCTION audit_log_is_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_log is append-only: % is not allowed', TG_OP;
+END $$;
+
+CREATE OR REPLACE TRIGGER audit_log_no_update_or_delete
+    BEFORE UPDATE OR DELETE ON audit_log
+    FOR EACH ROW EXECUTE FUNCTION audit_log_is_append_only();
+
+CREATE OR REPLACE TRIGGER audit_log_no_truncate
+    BEFORE TRUNCATE ON audit_log
+    FOR EACH STATEMENT EXECUTE FUNCTION audit_log_is_append_only();
