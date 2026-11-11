@@ -79,14 +79,14 @@ CREATE TABLE IF NOT EXISTS api_users (
     person_id    text REFERENCES employees (person_id)  -- set for managers: whose reports they see
 );
 
--- Every read of person data, allowed or denied.
+-- Every read of person data, allowed or denied, and every failed login.
 -- No foreign key on person_id: an attempt to read a person who does not exist should still be logged.
 CREATE TABLE IF NOT EXISTS audit_log (
     id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     at        timestamptz NOT NULL DEFAULT now(),
     username  text NOT NULL,
     role      text NOT NULL,
-    action    text NOT NULL,         -- e.g. 'read_journey', 'read_pay'
+    action    text NOT NULL,         -- 'read_journey', 'read_pay' or 'failed_login'
     person_id text,
     outcome   text NOT NULL CHECK (outcome IN ('allowed', 'denied'))
 );

@@ -39,10 +39,14 @@ def get(client, path, user):
     return client.get(path, headers={"Authorization": f"Bearer {TOKENS[user]}"})
 
 
-def test_missing_or_wrong_token_is_401(client):
+def test_missing_or_wrong_token_is_401_and_logged(client, conn):
     assert client.get("/insights/hiring-channels").status_code == 401
     bad = client.get("/insights/hiring-channels", headers={"Authorization": "Bearer nope"})
     assert bad.status_code == 401
+
+    rows = conn.execute("SELECT username, action, person_id, outcome FROM audit_log").fetchall()
+    assert rows == [("anonymous", "failed_login", None, "denied")] * 2
+    assert "nope" not in str(conn.execute("SELECT * FROM audit_log").fetchall())  # no token kept
 
 
 def test_admin_sees_whole_journey_in_date_order(client, my_report):
