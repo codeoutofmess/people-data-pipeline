@@ -89,5 +89,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
     role      text NOT NULL,
     action    text NOT NULL,         -- 'read_journey', 'read_pay' or 'failed_login'
     person_id text,
-    outcome   text NOT NULL CHECK (outcome IN ('allowed', 'denied'))
+    outcome   text NOT NULL CHECK (outcome IN ('allowed', 'denied')),
+    reason    text                   -- why a person's record was opened; empty for failed logins
 );

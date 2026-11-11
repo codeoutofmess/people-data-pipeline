@@ -35,8 +35,9 @@ def other_team(conn):
     ).fetchone()[0]
 
 
-def get(client, path, user):
-    return client.get(path, headers={"Authorization": f"Bearer {TOKENS[user]}"})
+def get(client, path, user, reason="team_planning"):
+    params = {"reason": reason} if reason else {}
+    return client.get(path, params=params, headers={"Authorization": f"Bearer {TOKENS[user]}"})
 
 
 def test_missing_or_wrong_token_is_401_and_logged(client, conn):
@@ -104,14 +105,23 @@ def test_every_person_read_is_audited(client, conn, my_report, other_team):
     get(client, "/insights/hiring-channels", "viewer_demo")  # aggregate: not audited
 
     rows = conn.execute(
-        "SELECT username, role, action, person_id, outcome, at FROM audit_log ORDER BY id"
+        "SELECT username, role, action, person_id, outcome, reason, at FROM audit_log ORDER BY id"
     ).fetchall()
-    assert [r[:5] for r in rows] == [
-        ("manager_demo", "manager", "read_journey", my_report, "allowed"),
-        ("manager_demo", "manager", "read_pay", other_team, "denied"),
-        ("admin_demo", "people_admin", "read_pay", my_report, "allowed"),
+    assert [r[:6] for r in rows] == [
+        ("manager_demo", "manager", "read_journey", my_report, "allowed", "team_planning"),
+        ("manager_demo", "manager", "read_pay", other_team, "denied", "team_planning"),
+        ("admin_demo", "people_admin", "read_pay", my_report, "allowed", "team_planning"),
     ]
-    assert all(r[5] is not None for r in rows)  # "when"
+    assert all(r[6] is not None for r in rows)  # "when"
+
+
+def test_opening_a_record_needs_a_valid_reason(client, conn, my_report):
+    assert get(client, f"/people/{my_report}/journey", "admin_demo", reason=None).status_code == 422
+    assert (
+        get(client, f"/people/{my_report}/pay", "admin_demo", reason="curious").status_code == 422
+    )
+    # Refused before any data is read, so there is nothing to audit.
+    assert conn.execute("SELECT count(*) FROM audit_log").fetchone()[0] == 0
 
 
 def test_hiring_channel_insight(client):
