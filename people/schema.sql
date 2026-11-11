@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS api_users (
     username     text PRIMARY KEY,
     role         text NOT NULL CHECK (role IN ('people_admin', 'manager', 'viewer')),
     token_sha256 text NOT NULL UNIQUE,
-    person_id    text REFERENCES employees (person_id)  -- set for managers: whose reports they see
+    person_id    text REFERENCES employees (person_id), -- set for managers: whose reports they see
+    expires_at   timestamptz NOT NULL                   -- after this, the token is refused
 );
 
 -- Every read of person data, allowed or denied, and every failed login.
