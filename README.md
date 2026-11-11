@@ -125,7 +125,8 @@ environment variable. Only a SHA-256 hash of each token is stored.
 | `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes |
 
 Every read of person data, allowed or denied, writes a row to `audit_log` (who, role, what,
-which person, when, outcome). A manager asking for someone outside their team gets 403 even if
+which person, when, outcome). A missing or wrong token is logged too, as a `failed_login` row
+(the token itself is never stored), so repeated guessing shows up. A manager asking for someone outside their team gets 403 even if
 that person does not exist, so the API does not reveal who is in the system.
 
 ## Retention (demo rule)
@@ -156,8 +157,8 @@ Said plainly, so nobody assumes otherwise:
   There is no login, no identity provider, and no multi-factor authentication.
 - **Rows that disappear from a source file are not deleted** from the database. Each run only
   adds and updates.
-- **Failed logins are not logged.** A missing or wrong token gets a 401 and leaves no record.
-  Only reads of person data are audited.
+- **No lockout or rate limiting after failed logins.** They are logged, but nothing stops
+  someone from trying again.
 - **The quarantine table keeps raw rows, including names and emails**, and retention does not
   clean it. `audit_log` and `pipeline_runs` also grow forever.
 - **Access control lives only in the API code.** Anyone with direct database access sees

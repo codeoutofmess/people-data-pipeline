@@ -4,7 +4,7 @@ Access rules (demo):
 - people_admin: every person, including pay.
 - manager: only their direct reports, never pay.
 - viewer: no person data, only the aggregate hiring-channel insight.
-Every read of person data, allowed or denied, is written to audit_log.
+Every read of person data, allowed or denied, and every failed login is written to audit_log.
 """
 
 import psycopg
@@ -20,6 +20,7 @@ app = FastAPI(
     description="Learning project on synthetic data only. Demo authentication, not production.",
 )
 bearer = HTTPBearer(auto_error=False)  # we raise our own 401 below
+ANONYMOUS = User(username="anonymous", role="none", person_id=None)  # for failed logins
 
 
 def get_conn():
@@ -36,6 +37,8 @@ def current_user(
 ) -> User:
     user = find_user(conn, creds.credentials) if creds else None
     if not user:
+        # Logged so repeated guessing is visible. The token itself is never stored.
+        audit(conn, ANONYMOUS, "failed_login", None, False)
         raise HTTPException(401, "Missing or invalid token", {"WWW-Authenticate": "Bearer"})
     return user
 
@@ -53,7 +56,7 @@ def can_read_person(conn: psycopg.Connection, user: User, person_id: str) -> boo
     return False
 
 
-def audit(conn: psycopg.Connection, user: User, action: str, person_id: str, allowed: bool):
+def audit(conn: psycopg.Connection, user: User, action: str, person_id: str | None, allowed: bool):
     conn.execute(
         "INSERT INTO audit_log (username, role, action, person_id, outcome)"
         " VALUES (%s, %s, %s, %s, %s)",
