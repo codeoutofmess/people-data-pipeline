@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>People Records</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap">
+<style>
+  :root { --ink:#111; --paper:#fff; --soft:#f5f5f3; --line:#e2e2df; --muted:#6b6b68; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--soft); color:var(--ink); font:14px/1.5 Geist, system-ui, sans-serif; }
+  a { color:inherit; }
+  button, input, select { font:inherit; color:inherit; }
+  .mono { font-family:"Geist Mono", monospace; font-size:13px; }
+
+  /* sign in */
+  #login { min-height:100vh; display:grid; place-items:center; padding:16px; }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:32px; width:100%; max-width:360px; }
+  .brand { font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .brand i { width:18px; height:18px; border-radius:4px; background:var(--ink); display:inline-block; }
+  .card h1 { font-size:20px; margin:20px 0 4px; }
+  .card p { color:var(--muted); margin:0 0 20px; }
+  label { display:block; font-weight:500; margin:14px 0 6px; }
+  input, select { width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
+  input:focus, select:focus { outline:2px solid var(--ink); outline-offset:-1px; }
+  .primary { width:100%; margin-top:20px; padding:10px; border:0; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:500; cursor:pointer; }
+  .error { background:var(--soft); border-left:3px solid var(--ink); padding:8px 10px; margin-top:14px; }
+  .fine { font-size:12px; color:var(--muted); margin-top:20px; text-align:center; }
+
+  /* app shell */
+  header { background:var(--paper); border-bottom:1px solid var(--line); }
+  .bar { max-width:1100px; margin:0 auto; padding:0 16px; display:flex; align-items:center; gap:28px; height:56px; }
+  nav { display:flex; gap:4px; flex:1; overflow-x:auto; }
+  nav a { text-decoration:none; padding:6px 10px; border-radius:6px; color:var(--muted); white-space:nowrap; }
+  nav a.on { color:var(--ink); background:var(--soft); font-weight:500; }
+  .who { text-align:right; line-height:1.25; white-space:nowrap; }
+  .who small { color:var(--muted); display:block; }
+  .link { background:none; border:0; padding:0; text-decoration:underline; cursor:pointer; color:var(--muted); white-space:nowrap; }
+  main { max-width:1100px; margin:0 auto; padding:28px 16px 64px; }
+  h2 { font-size:22px; margin:0; letter-spacing:-.01em; }
+  .sub { color:var(--muted); margin:2px 0 20px; }
+  .tools { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .tools input { max-width:320px; }
+  .tools select { width:auto; }
+  .panel { background:var(--paper); border:1px solid var(--line); border-radius:10px; overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:12px; font-weight:500; color:var(--muted); background:var(--soft); }
+  tr:last-child td { border-bottom:0; }
+  tr.row { cursor:pointer; }
+  tr.row a { text-decoration:none; font-weight:500; }
+  tr.row:hover td { background:var(--soft); }
+  .tag { display:inline-block; padding:1px 8px; border:1px solid var(--line); border-radius:99px; font-size:12px; }
+  .tag.solid { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .muted { color:var(--muted); }
+  .crumb { color:var(--muted); margin-bottom:10px; display:inline-block; }
+  .profile { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:16px;
+             display:flex; gap:16px; align-items:center; }
+  .avatar { width:52px; height:52px; border-radius:50%; background:var(--ink); color:var(--paper); display:grid; place-items:center; font-weight:600; flex:none; }
+  .facts { display:flex; gap:6px 28px; flex-wrap:wrap; margin-top:6px; color:var(--muted); }
+  .facts b { color:var(--ink); font-weight:500; }
+  .tabs { display:flex; gap:20px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  .tabs a { text-decoration:none; padding:8px 0; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs a.on { color:var(--ink); border-color:var(--ink); font-weight:500; }
+  .empty { padding:56px 16px; text-align:center; }
+  .empty h2 { margin-bottom:6px; }
+  .note { color:var(--muted); font-size:13px; margin-top:12px; }
+  @media (max-width:640px) { .who { display:none; } .bar { gap:12px; } .profile { align-items:flex-start; } }
+</style>
+</head>
+<body>
+
+<section id="login" hidden>
+  <form class="card" id="loginForm">
+    <div class="brand"><i></i>People Records</div>
+    <h1>Sign in</h1>
+    <p>Use your company account.</p>
+    <label for="u">Username</label>
+    <input id="u" autocomplete="username" required>
+    <label for="p">Password</label>
+    <input id="p" type="password" autocomplete="current-password" required>
+    <div class="error" id="loginError" role="alert" hidden></div>
+    <button class="primary">Sign in</button>
+    <div class="fine">Internal use only. Access is logged.<br>
+      Demo with made-up data, reset every night.
+      <a href="https://github.com/codeoutofmess/people-data-pipeline#try-the-live-demo">Demo accounts and guide</a></div>
+  </form>
+</section>
+
+<section id="shell" hidden>
+  <header><div class="bar">
+    <div class="brand"><i></i>People Records</div>
+    <nav id="nav"></nav>
+    <div class="who"><span id="whoName"></span><small id="whoTitle"></small></div>
+    <button class="link" id="signOut">Sign out</button>
+  </div></header>
+  <main id="main"></main>
+</section>
+
+<script>
+const KEY = "people-records-session";
+const NAV = {
+  people_admin: [["#/people", "People"], ["#/insights", "Insights"], ["#/access-log", "Access log"]],
+  manager: [["#/people", "My team"], ["#/insights", "Insights"], ["#/my-record", "Who viewed my record"]],
+  viewer: [["#/insights", "Insights"]],
+  employee: [["#/my-record", "Who viewed my record"]],
+};
+const USERS = { anonymous: "Unknown" };
+const ROLES = { people_admin: "People team admin", manager: "Manager", viewer: "Viewer", employee: "Employee" };
+const REASONS = { performance_review: "Performance review", team_planning: "Team planning",
+  hr_query: "HR query", payroll: "Payroll" };
+const ACTIONS = { read_journey: "View profile", read_pay: "View pay", failed_login: "Failed sign-in" };
+const reasons = {};  // person id -> reason given this visit
+
+let session = null;
+try { session = JSON.parse(sessionStorage.getItem(KEY)); } catch {}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const day = d => d ? new Date(d).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" }) : "";
+const money = n => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+const initials = n => (n || "?").split(" ").map(w => w[0]).join("").slice(0, 2);
+const home = () => NAV[session.role][0][0];
+
+async function api(path) {
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${session.token}` } });
+  if (res.status === 401) { signOut(); throw new Error("signed out"); }
+  return { status: res.status, body: await res.json() };
+}
+
+$("loginForm").onsubmit = async e => {
+  e.preventDefault();
+  const res = await fetch("/login", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: $("u").value, password: $("p").value }) });
+  if (!res.ok) { $("loginError").textContent = "Incorrect username or password."; $("loginError").hidden = false; return; }
+  session = { ...(await res.json()), token: $("p").value };  // in this demo the password is the API key
+  try { sessionStorage.setItem(KEY, JSON.stringify(session)); } catch {}
+  $("loginForm").reset(); $("loginError").hidden = true;
+  if (location.hash.length > 2) render(); else location.hash = home();
+};
+
+function signOut() {
+  session = null;
+  try { sessionStorage.removeItem(KEY); } catch {}
+  history.replaceState(null, "", location.pathname);
+  render();
+}
+$("signOut").onclick = signOut;
+window.onhashchange = render;
+
+function noAccess() {
+  return `<div class="panel empty"><h2>You don't have access to this page</h2>
+    <p class="muted">If you think you should, contact the People team.</p>
+    <a href="${home()}">Go to your home page</a></div>`;
+}
+const notFound = what => `<div class="panel empty"><h2>${what} not found</h2><a href="${home()}">Go to your home page</a></div>`;
+
+async function render() {
+  $("login").hidden = !!session;
+  $("shell").hidden = !session;
+  if (!session) { $("u").focus(); return; }
+
+  const route = location.hash.slice(2).split("/");  // "#/people/P0009/pay" -> ["people","P0009","pay"]
+  if (!route[0]) { location.hash = home(); return; }
+  $("whoName").textContent = session.name || session.username;
+  $("whoTitle").textContent = ROLES[session.role];
+  $("nav").innerHTML = NAV[session.role].map(([href, label]) =>
+    `<a href="${href}" class="${href.slice(2) === route[0] ? "on" : ""}">${label}</a>`).join("");
+
+  const main = $("main");
+  main.innerHTML = `<p class="muted">Loading…</p>`;
+  const pages = { people: route[1] ? profilePage : peoplePage, insights: insightsPage,
+    "access-log": auditPage, "my-record": myRecordPage };
+  main.innerHTML = pages[route[0]] ? await pages[route[0]](route) : notFound("Page");
+  if (route[0] === "people" && !route[1] && $("rows")) wireDirectory();
+  if ($("reasonForm")) $("reasonForm").onsubmit = e => {
+    e.preventDefault(); reasons[route[1]] = $("reason").value; render();
+  };
+}
+
+let directory = [];
+async function peoplePage() {
+  const { status, body } = await api("/people");
+  if (status !== 200) return noAccess();
+  directory = body;
+  const admin = session.role === "people_admin";
+  return `<h2>${admin ? "People" : "My team"}</h2>
+    <p class="sub">${admin ? "Everyone in the system: employees and job candidates." : "People who report directly to you."}</p>
+    <div class="tools">
+      <input id="search" placeholder="Search by name or team" aria-label="Search">
+      ${admin ? `<select id="kind" aria-label="Show"><option value="">Everyone</option><option value="emp">Employees</option><option value="cand">Candidates</option></select>` : ""}
+    </div>
+    <div class="panel"><table><thead><tr><th>Name</th><th>Team</th><th>Role</th><th>Status</th><th>Started</th></tr></thead>
+    <tbody id="rows"></tbody></table></div><p class="note" id="count"></p>`;
+}
+
+function wireDirectory() {
+  const draw = () => {
+    const q = $("search").value.toLowerCase(), kind = $("kind")?.value;
+    const rows = directory.filter(p =>
+      (!q || [p.full_name, p.team].some(v => (v || "").toLowerCase().includes(q))) &&
+      (!kind || (kind === "emp") === !!p.team));
+    $("rows").innerHTML = rows.map(p => `<tr class="row" data-id="${esc(p.person_id)}">
+      <td><a href="#/people/${esc(p.person_id)}">${p.full_name ? esc(p.full_name) : "Details removed"}</a></td>
+      <td>${esc(p.team) || `<span class="muted">—</span>`}</td><td>${esc(p.role) || `<span class="muted">—</span>`}</td>
+      <td><span class="tag">${p.team ? esc(p.status).replace("_", " ") : "candidate"}</span></td><td>${day(p.start_date)}</td></tr>`).join("");
+    $("count").textContent = `${rows.length} of ${directory.length}`;
+  };
+  $("search").oninput = draw;
+  if ($("kind")) $("kind").onchange = draw;
+  $("rows").onclick = e => { const tr = e.target.closest("tr.row"); if (tr) location.hash = `#/people/${tr.dataset.id}`; };
+  draw();
+}
+
+function describe(ev) {
+  switch (ev.event) {
+    case "applied": return `Applied <span class="muted">via ${esc(ev.channel)}</span>`;
+    case "hired": return "Offer accepted";
+    case "rejected": return "Application unsuccessful";
+    case "started": return `Started as ${esc(ev.role)}, ${esc(ev.team)}`;
+    case "reviewed": return `Performance review ${esc(ev.cycle)} <span class="muted">· rating ${ev.rating} / 5</span>`;
+    default: return esc(ev.event);
+  }
+}
+
+async function profilePage(route) {
+  const [, id, tab] = route;
+  const admin = session.role === "people_admin";
+  if (!reasons[id]) return `<a class="crumb" href="#/people">← Back</a>
+    <form class="panel empty" id="reasonForm" style="max-width:420px;margin:0 auto;text-align:left;padding:28px">
+      <h2>Why are you opening this record?</h2>
+      <p class="muted">Your reason is saved in the access log, and the person can see it.</p>
+      <label for="reason">Reason</label>
+      <select id="reason" required><option value="">Choose a reason</option>${
+        Object.entries(REASONS).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
+      <button class="primary">Continue</button></form>`;
+  const q = `?reason=${reasons[id]}`;
+  const { status, body } = await api(`/people/${encodeURIComponent(id)}/journey${q}`);
+  if (status === 403) return noAccess();
+  if (status === 404) return notFound("Person");
+
+  const job = body.events.find(e => e.event === "started");
+  const head = `<a class="crumb" href="#/people">← ${admin ? "People" : "My team"}</a>
+    <div class="profile"><div class="avatar">${esc(initials(body.full_name))}</div><div>
+      <h2>${body.full_name ? esc(body.full_name) : "Details removed"}</h2>
+      <div class="facts"><span>${esc(body.email) || "No email on file"}</span>
+        ${job ? `<span><b>${esc(job.role)}</b> · ${esc(job.team)}</span><span>Since <b>${day(job.date)}</b></span>` : `<span><b>Candidate</b></span>`}
+        <span class="mono">${esc(body.person_id)}</span></div></div></div>
+    <div class="tabs"><a href="#/people/${esc(id)}" class="${tab ? "" : "on"}">Timeline</a>
+      ${admin ? `<a href="#/people/${esc(id)}/pay" class="${tab === "pay" ? "on" : ""}">Pay</a>` : ""}</div>`;
+
+  if (tab === "pay") {
+    const pay = await api(`/people/${encodeURIComponent(id)}/pay${q}`);
+    if (pay.status !== 200) return noAccess();
+    return head + (pay.body.pay.length
+      ? `<div class="panel"><table><thead><tr><th>Pay period</th><th>Gross amount</th></tr></thead><tbody>${
+          pay.body.pay.map(p => `<tr><td>${day(p.period_start)} – ${day(p.period_end)}</td><td class="mono">${money(p.gross_amount)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<div class="panel empty"><p class="muted">No pay records.</p></div>`);
+  }
+  if (tab) return notFound("Page");
+  const events = body.events.filter(e => e.event !== "paid");  // pay has its own tab
+  return head + `<div class="panel"><table><thead><tr><th>Date</th><th>Event</th></tr></thead><tbody>${
+    events.map(e => `<tr><td>${day(e.date)}</td><td>${describe(e)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+async function insightsPage() {
+  const { status, body } = await api("/insights/hiring-channels");
+  if (status !== 200) return noAccess();
+  return `<h2>Hiring channels</h2><p class="sub">${esc(body.metric[0].toUpperCase() + body.metric.slice(1))}.</p>
+    <div class="panel"><table><thead><tr><th>Channel</th><th>Applicants</th><th>Hires</th><th>Hires reviewed</th><th>Avg. review rating</th></tr></thead><tbody>${
+      body.channels.map(c => `<tr><td>${esc(c.source_channel)}</td><td>${c.applicants}</td><td>${c.hires}</td><td>${c.reviewed_hires}</td>
+        <td>${c.avg_review_rating ?? `<span class="muted">—</span>`}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">${esc(body.note)}</p>`;
+}
+
+async function auditPage() {
+  const { status, body } = await api("/audit-log");
+  if (status !== 200) return noAccess();
+  return `<h2>Access log</h2><p class="sub">Every attempt to open someone's records, and every failed sign-in. Latest first. Entries can't be edited or deleted.</p>
+    <div class="panel"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Person</th><th>Reason</th><th>Result</th></tr></thead><tbody>${
+      body.length ? body.map(r => `<tr><td>${new Date(r.at).toLocaleString()}</td><td>${esc(USERS[r.username] || r.username)}</td>
+        <td>${ACTIONS[r.action] || esc(r.action)}</td><td>${r.full_name ? esc(r.full_name) : `<span class="mono">${esc(r.person_id ?? "—")}</span>`}</td>
+        <td>${REASONS[r.reason] || `<span class="muted">—</span>`}</td>
+        <td><span class="tag ${r.outcome === "denied" ? "solid" : ""}">${r.outcome}</span></td></tr>`).join("")
+      : `<tr><td colspan="6" class="muted">No activity yet.</td></tr>`}</tbody></table></div>`;
+}
+
+async function myRecordPage() {
+  const { status, body } = await api("/me/access-log");
+  if (status !== 200) return noAccess();
+  return `<h2>Who viewed my record</h2><p class="sub">Everyone who opened or tried to open your record, and why. Latest first.</p>
+    <div class="panel"><table><thead><tr><th>Time</th><th>Who</th><th>What</th><th>Reason</th><th>Result</th></tr></thead><tbody>${
+      body.accesses.length ? body.accesses.map(r => `<tr><td>${new Date(r.at).toLocaleString()}</td><td>${esc(USERS[r.username] || r.username)}</td>
+        <td>${ACTIONS[r.action] || esc(r.action)}</td><td>${REASONS[r.reason] || "—"}</td>
+        <td><span class="tag ${r.outcome === "denied" ? "solid" : ""}">${r.outcome}</span></td></tr>`).join("")
+      : `<tr><td colspan="5" class="muted">Nobody has opened your record yet.</td></tr>`}</tbody></table></div>`;
+}
+
+render();
+</script>
+</body>
+</html>

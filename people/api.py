@@ -7,14 +7,19 @@ Access rules (demo):
 - employee: no one else's data, but can see who opened their own record (/me/access-log).
 Every read of person data, allowed or denied, and every failed login is written to audit_log.
 Opening a person's record needs a stated reason, which is saved in the same audit row.
+
+The web front end (people/web/index.html) is served at / and uses these same endpoints.
 """
 
+from pathlib import Path
 from typing import Literal
 
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg.rows import dict_row
+from pydantic import BaseModel
 
 from people import db
 from people.auth import User, find_user
@@ -91,6 +96,72 @@ def check_access(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/", include_in_schema=False)
+def web_app():
+    return FileResponse(Path(__file__).with_name("web") / "index.html")
+
+
+class Login(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/login")
+def login(body: Login, conn: psycopg.Connection = Depends(get_conn)):
+    """Sign-in for the web front end. In this demo the password is the user's API token, so the
+    front end sends it as the bearer token afterwards. Wrong details are logged like any failed
+    login, and the answer never says whether the username or the password was wrong."""
+    user = find_user(conn, body.password)
+    if not user or user.username != body.username.strip().lower():
+        audit(conn, ANONYMOUS, "failed_login", None, False)
+        raise HTTPException(401, "Incorrect username or password")
+    row = conn.execute(
+        "SELECT full_name FROM people WHERE person_id = %s", (user.person_id,)
+    ).fetchone()  # admin and viewer accounts are not linked to a person: no row
+    return {
+        "username": user.username,
+        "role": user.role,
+        "person_id": user.person_id,
+        "name": row["full_name"] if row else None,
+    }
+
+
+@app.get("/people")
+def people_list(
+    user: User = Depends(current_user),
+    conn: psycopg.Connection = Depends(get_conn),
+):
+    """The list someone may browse: everyone for people_admin, direct reports for a manager.
+    Name, team, role and status only (no email). Opening a record needs /journey and a reason."""
+    # shortcut: browsing this list is not audited, only opening a record is. Audit it too if
+    # names alone become sensitive.
+    sql = (
+        "SELECT p.person_id, p.full_name, e.team, e.role, e.status, e.start_date"
+        " FROM people p LEFT JOIN employees e USING (person_id)"
+    )
+    if user.role == "people_admin":
+        return conn.execute(sql + " ORDER BY p.full_name NULLS LAST").fetchall()
+    if user.role == "manager":
+        return conn.execute(
+            sql + " WHERE e.manager_id = %s ORDER BY p.full_name", (user.person_id,)
+        ).fetchall()
+    raise HTTPException(403, "You are not allowed to read this data")
+
+
+@app.get("/audit-log")
+def audit_log_view(
+    user: User = Depends(current_user),
+    conn: psycopg.Connection = Depends(get_conn),
+):
+    """The latest 200 access-log rows, newest first. people_admin only."""
+    if user.role != "people_admin":
+        raise HTTPException(403, "You are not allowed to read this data")
+    return conn.execute(
+        "SELECT a.at, a.username, a.role, a.action, a.person_id, p.full_name, a.outcome, a.reason"
+        " FROM audit_log a LEFT JOIN people p USING (person_id) ORDER BY a.id DESC LIMIT 200"
+    ).fetchall()
 
 
 @app.get("/people/{person_id}/journey")

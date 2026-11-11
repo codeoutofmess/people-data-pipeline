@@ -1,3 +1,6 @@
+import importlib.util
+from pathlib import Path
+
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -170,3 +173,64 @@ def test_hiring_channel_insight(client):
     assert {c["source_channel"] for c in body["channels"]} == {
         "referral", "job_board", "careers_site", "agency", "university",
     }  # fmt: skip
+
+
+def login(client, username, password):
+    return client.post("/login", json={"username": username, "password": password})
+
+
+def test_front_end_is_served(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "People Records" in r.text
+
+
+def test_login_checks_username_and_password_together(client, conn):
+    ok = login(client, "Manager_Demo ", TOKENS["manager_demo"]).json()  # case and spaces forgiven
+    assert ok["role"] == "manager" and ok["person_id"] == MANAGER and ok["name"]
+    assert login(client, "admin_demo", TOKENS["admin_demo"]).json()["name"] is None
+
+    assert login(client, "manager_demo", "wrong").status_code == 401
+    assert login(client, "admin_demo", TOKENS["manager_demo"]).status_code == 401  # someone else's
+    failed = conn.execute("SELECT count(*) FROM audit_log WHERE action = 'failed_login'")
+    assert failed.fetchone()[0] == 2
+
+
+def test_people_list_follows_the_access_rules(client, conn):
+    everyone = get(client, "/people", "admin_demo").json()
+    assert len(everyone) == conn.execute("SELECT count(*) FROM people").fetchone()[0]
+    assert all("email" not in p for p in everyone)
+
+    team = {p["person_id"] for p in get(client, "/people", "manager_demo").json()}
+    reports = conn.execute("SELECT person_id FROM employees WHERE manager_id = %s", (MANAGER,))
+    assert team == {r[0] for r in reports}
+
+    assert get(client, "/people", "viewer_demo").status_code == 403
+    assert get(client, "/people", "employee_demo").status_code == 403
+
+
+def test_only_people_admin_reads_the_audit_log(client):
+    get(client, f"/people/{EMPLOYEE}/journey", "manager_demo")
+    rows = get(client, "/audit-log", "admin_demo").json()
+    assert rows[0]["username"] == "manager_demo" and rows[0]["reason"] == "team_planning"
+    for user in ("manager_demo", "viewer_demo", "employee_demo"):
+        assert get(client, "/audit-log", user).status_code == 403
+
+
+def test_demo_reset_needs_the_secret_and_reloads_everything(client, conn, monkeypatch):
+    spec = importlib.util.spec_from_file_location(
+        "vercel_entry", Path(__file__).parents[1] / "api" / "index.py"
+    )
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))  # adds /reset-demo to the app
+
+    assert client.get("/reset-demo").status_code == 401  # no secret configured
+    monkeypatch.setenv("CRON_SECRET", "cron-test")
+    for username, (_, var) in auth.DEMO_USERS.items():
+        monkeypatch.setenv(var, TOKENS[username])
+    assert client.get("/reset-demo", headers={"Authorization": "Bearer nope"}).status_code == 401
+
+    get(client, f"/people/{EMPLOYEE}/journey", "manager_demo")  # a visitor's audit row
+    r = client.get("/reset-demo", headers={"Authorization": "Bearer cron-test"})
+    assert r.status_code == 200
+    assert conn.execute("SELECT count(*) FROM people").fetchone()[0] == 150
+    assert conn.execute("SELECT count(*) FROM audit_log").fetchone()[0] == 0
+    assert get(client, "/insights/hiring-channels", "viewer_demo").status_code == 200
