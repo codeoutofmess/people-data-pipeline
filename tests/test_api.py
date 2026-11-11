@@ -6,14 +6,20 @@ from people.api import app
 
 from .conftest import TEST_URL
 
-TOKENS = {"admin_demo": "admin-test", "manager_demo": "manager-test", "viewer_demo": "viewer-test"}
+TOKENS = {
+    "admin_demo": "admin-test",
+    "manager_demo": "manager-test",
+    "viewer_demo": "viewer-test",
+    "employee_demo": "employee-test",
+}
 MANAGER = "P0002"  # the Engineering lead
+EMPLOYEE = "P0009"  # one of the Engineering lead's direct reports
 
 
 @pytest.fixture
 def client(conn, raw_dir, monkeypatch):
     pipeline.run(conn, raw_dir)
-    auth.seed_users(conn, TOKENS, MANAGER)
+    auth.seed_users(conn, TOKENS, MANAGER, EMPLOYEE)
     monkeypatch.setenv("DATABASE_URL", TEST_URL)  # the API opens its own connections
     return TestClient(app)
 
@@ -122,6 +128,25 @@ def test_opening_a_record_needs_a_valid_reason(client, conn, my_report):
     )
     # Refused before any data is read, so there is nothing to audit.
     assert conn.execute("SELECT count(*) FROM audit_log").fetchone()[0] == 0
+
+
+def test_employee_sees_who_opened_their_record(client, conn, other_team):
+    assert get(client, f"/people/{EMPLOYEE}/journey", "manager_demo").status_code == 200
+    assert (
+        get(client, f"/people/{other_team}/journey", "admin_demo").status_code == 200
+    )  # not theirs
+
+    body = get(client, "/me/access-log", "employee_demo").json()
+    assert body["person_id"] == EMPLOYEE
+    assert [(a["username"], a["action"], a["outcome"], a["reason"]) for a in body["accesses"]] == [
+        ("manager_demo", "read_journey", "allowed", "team_planning")
+    ]
+    # An employee cannot open anyone's record, including their own.
+    assert get(client, f"/people/{EMPLOYEE}/journey", "employee_demo").status_code == 403
+
+
+def test_account_without_a_person_has_no_access_log(client):
+    assert get(client, "/me/access-log", "viewer_demo").status_code == 403
 
 
 def test_hiring_channel_insight(client):

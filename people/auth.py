@@ -1,4 +1,4 @@
-"""Demo authentication: three seeded users, each with a bearer token.
+"""Demo authentication: four seeded users, each with a bearer token.
 
 This is NOT real authentication. There is no login and no identity provider.
 A client sends `Authorization: Bearer <token>`. We hash the token and look up the user,
@@ -17,6 +17,7 @@ DEMO_USERS = {
     "admin_demo": ("people_admin", "DEMO_TOKEN_PEOPLE_ADMIN"),
     "manager_demo": ("manager", "DEMO_TOKEN_MANAGER"),
     "viewer_demo": ("viewer", "DEMO_TOKEN_VIEWER"),
+    "employee_demo": ("employee", "DEMO_TOKEN_EMPLOYEE"),
 }
 
 
@@ -24,7 +25,7 @@ DEMO_USERS = {
 class User:
     username: str
     role: str
-    person_id: str | None  # for a manager: whose direct reports they can see
+    person_id: str | None  # the person this account belongs to (manager and employee)
 
 
 def hash_token(token: str) -> str:
@@ -32,9 +33,13 @@ def hash_token(token: str) -> str:
 
 
 def seed_users(
-    conn: psycopg.Connection, tokens: dict[str, str], manager_person_id: str, days: int = 30
+    conn: psycopg.Connection,
+    tokens: dict[str, str],
+    manager_person_id: str,
+    employee_person_id: str,
+    days: int = 30,
 ) -> None:
-    """Create or replace the three demo users. `tokens` maps username -> token.
+    """Create or replace the four demo users. `tokens` maps username -> token.
     Each token stops working `days` days from now; run this again with new tokens to rotate."""
     for username, (role, _) in DEMO_USERS.items():
         conn.execute(
@@ -49,7 +54,7 @@ def seed_users(
                 username,
                 role,
                 hash_token(tokens[username]),
-                manager_person_id if role == "manager" else None,
+                {"manager": manager_person_id, "employee": employee_person_id}.get(role),
                 days,
             ),
         )

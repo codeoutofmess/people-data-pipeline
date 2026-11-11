@@ -22,8 +22,9 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("report", help="print the latest run's data-quality summary")
 
-    seed = sub.add_parser("seed-users", help="create the 3 demo API users from DEMO_TOKEN_* vars")
+    seed = sub.add_parser("seed-users", help="create the 4 demo API users from DEMO_TOKEN_* vars")
     seed.add_argument("--manager", default="P0002", help="person_id the demo manager acts as")
+    seed.add_argument("--employee", default="P0009", help="person_id the demo employee acts as")
     seed.add_argument("--days", type=int, default=30, help="days until the tokens expire")
 
     ret = sub.add_parser("retention", help="blank rejected candidates' name and email (demo rule)")
@@ -50,9 +51,10 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "seed-users":
         tokens = auth.tokens_from_env()
         with db.connect() as conn:
-            auth.seed_users(conn, tokens, args.manager, args.days)
+            auth.seed_users(conn, tokens, args.manager, args.employee, args.days)
         print(
-            f"Seeded {', '.join(tokens)} (manager acts as {args.manager}),"
+            f"Seeded {', '.join(tokens)} (manager acts as {args.manager},"
+            f" employee as {args.employee}),"
             f" tokens valid for {args.days} days."
         )
     elif args.command == "retention":
