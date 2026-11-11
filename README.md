@@ -7,6 +7,42 @@ into one Postgres database, with a small access-controlled API on top.
 It is a practice project, not any real company's system. It has never
 handled real people's data, and it is not production software.
 
+## Try the live demo
+
+**[people-records-demo.vercel.app](https://people-records-demo.vercel.app)** runs "People
+Records", a small internal HR tool built on this API. Sign in as any of the four roles and see
+the same system show each person only what their job needs.
+
+Everything in it is made up. The logins below are public on purpose, and the demo **resets every
+night at 14:00 UTC**, so nothing you do there lasts.
+
+| Sign in as | Username | Password | Can see | Can't see |
+|---|---|---|---|---|
+| People team admin | `admin_demo` | `demo-people-admin` | Everyone's records and pay, hiring insights, the full access log | (nothing is hidden) |
+| Manager: Vikram Zhang, Engineering | `manager_demo` | `demo-manager` | Their 11 direct reports without pay, hiring insights, who viewed their own record | Other teams, anyone's pay, the access log |
+| Viewer | `viewer_demo` | `demo-viewer` | Company-wide hiring insights | Any individual's data |
+| Employee: Hemi Brown, reports to Vikram | `employee_demo` | `demo-employee` | Who has opened their record, when and why | Everyone's records, including their own |
+
+### A five-minute tour
+
+1. **Manager.** Open *My team*, click **Hemi Brown** and choose a reason. You see Hemi's history,
+   but there is no *Pay* tab.
+2. **Still the manager, go where you shouldn't.** Change the end of the address to
+   `#/people/P0150` (someone on another team), or add `/pay` to Hemi's address, or try
+   `#/access-log`. Each one says "You don't have access to this page". The attempts to open a
+   record or pay are recorded.
+3. **Employee.** *Who viewed my record* shows Vikram's visit, the reason he gave, and any
+   refused attempts.
+4. **People team admin.** Open anyone's *Pay* tab, then the *Access log*: every record and pay
+   attempt from steps 1 and 2, allowed or refused, plus failed sign-ins. Its entries cannot be edited or deleted.
+5. **Viewer.** Only the hiring insights; every other page is refused.
+6. **Anyone.** Sign in with a wrong password. It shows up in the access log as a failed sign-in.
+
+The rules are enforced by the API, not by the screens: a page only hides what the API would refuse
+anyway. The passwords are also API keys, so the same rules apply outside the web page, for example
+`curl -H "Authorization: Bearer demo-viewer" https://people-records-demo.vercel.app/insights/hiring-channels`.
+Interactive API docs are at [/docs](https://people-records-demo.vercel.app/docs).
+
 ## Architecture
 
 ```mermaid
@@ -31,6 +67,8 @@ flowchart LR
 | API | `people/api.py`, `people/auth.py` | Demo tokens, four roles, audit log. |
 | Retention | `people/retention.py` | Blanks old rejected candidates' name and email. |
 | Command line | `people/cli.py` | `people init-db / generate / run / report / seed-users / retention` |
+| Web front end | `people/web/index.html` | "People Records": sign-in and role-based screens, using only the API above. |
+| Live demo | `api/index.py`, `vercel.json` | Vercel entry point, plus the nightly reset (Vercel Cron). |
 
 ## Run it locally
 
@@ -75,7 +113,9 @@ uv run people retention --days 180 --dry-run
 uv run people retention --days 180
 ```
 
-Interactive API docs with an "Authorize" button are at `http://localhost:8000/docs`.
+The People Records web app is at `http://localhost:8000/`: sign in with a demo username
+(`admin_demo`, `manager_demo`, `viewer_demo`, `employee_demo`) and that user's token from `.env`
+as the password. Interactive API docs with an "Authorize" button are at `http://localhost:8000/docs`.
 
 ## The data
 
@@ -126,7 +166,13 @@ environment variable. Only a SHA-256 hash of each token is stored, and each toke
 | `GET /people/{id}/journey` (application, hire, pay, reviews in date order) | anyone, with pay | direct reports only, without pay | 403 | 403 |
 | `GET /people/{id}/pay` | yes | 403 | 403 | 403 |
 | `GET /me/access-log` (who opened **my** record, when, why) | 403 (no person) | yes | 403 (no person) | yes |
+| `GET /people` (list to browse: name, team, role, no email) | everyone | direct reports | 403 | 403 |
+| `GET /audit-log` (latest 200 access-log rows) | yes | 403 | 403 | 403 |
 | `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes | yes |
+
+`POST /login` is for the web front end: it checks a username and password together and answers
+with the user's role. In this demo the password is the user's token. Wrong details get the same
+401 whichever part was wrong, and are logged as a failed login.
 
 The database itself refuses to change or delete `audit_log` rows (a trigger), so a bug or a
 careless query in the app cannot rewrite history.
@@ -139,9 +185,10 @@ Opening a person's record needs a reason (`?reason=` one of `performance_review`
 read. The reason is saved with the audit row, so a reviewer can ask "was this access justified?".
 
 Every read of person data, allowed or denied, writes a row to `audit_log` (who, role, what,
-which person, when, outcome, reason). A missing or wrong token is logged too, as a `failed_login` row
-(the token itself is never stored), so repeated guessing shows up. A manager asking for someone outside their team gets 403 even if
-that person does not exist, so the API does not reveal who is in the system.
+which person, when, outcome, reason). A missing or wrong token is logged too, as a
+`failed_login` row (the token itself is never stored), so repeated guessing shows up. A manager
+asking for someone outside their team gets 403 even if that person does not exist, so the API does
+not reveal who is in the system.
 
 ## Retention (demo rule)
 
@@ -153,7 +200,7 @@ Real retention periods depend on law and company policy.
 
 ## Tests and Continuous Integration
 
-`uv run pytest` runs 31 tests against a real Postgres: validation and quarantine reasons,
+`uv run pytest` runs 36 tests against a real Postgres: validation and quarantine reasons,
 idempotent reruns, a failed run leaving no half-loaded data, access control (including "a
 manager cannot see another team's pay"), audit rows, and retention (including "a rerun does not
 refill blanked data").
@@ -166,10 +213,11 @@ workflow token is read-only, and a new push cancels the branch's older run.
 
 Said plainly, so nobody assumes otherwise:
 
-- **No scheduled pipeline run.** The pipeline only runs when someone types `people run`.
+- **No scheduled pipeline run** apart from the live demo's nightly reset. Otherwise the pipeline
+  only runs when someone types `people run`, and nothing alerts anyone if a run fails.
 - **No automatic token rotation.** Tokens expire (30 days by default), but new ones are only
-  issued when someone runs `seed-users` again. There is no login, no identity provider, and no
-  multi-factor authentication.
+  issued when someone runs `seed-users` again. The web sign-in uses the token as the password.
+  There is no identity provider, no session tokens and no multi-factor authentication.
 - **Rows that disappear from a source file are not deleted** from the database. Each run only
   adds and updates.
 - **Employees cannot read their own record**, only see who opened it.
@@ -182,6 +230,9 @@ Said plainly, so nobody assumes otherwise:
   deletes, but a database owner could remove the trigger. An insert-only database role for the app,
   or copying the log to a separate system, would close that gap.
 - **No migration tool.** Schema changes mean recreating the database.
-- **No front end, no AI features, no deployment, no pagination, rate limiting or connection pooling.**
+- **The live demo's logins are public**, so anyone can add access-log rows until the nightly
+  reset. That is fine for made-up data and would never be done with real data.
+- **Browsing the people list is not audited.** Only opening someone's record is.
+- **No AI features, pagination, rate limiting or connection pooling.**
 - **The hiring-channel metric is a simple demo**: small samples, no adjustment for team, role or
   tenure, and no causal claim.

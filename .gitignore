@@ -13,3 +13,7 @@ data/
 
 # Personal study notes, kept out of the public repository
 LEARNING_NOTES.md
+
+# Vercel project link (created by `vercel link`)
+.vercel/
+.env.local

@@ -1,0 +1,10 @@
+# Never upload local settings, data or study notes to Vercel.
+.env
+.env.local
+.venv/
+data/
+tests/
+LEARNING_NOTES.md
+.pytest_cache/
+.ruff_cache/
+__pycache__/
