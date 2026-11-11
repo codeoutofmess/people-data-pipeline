@@ -25,6 +25,7 @@ def test_quarantine_reasons(conn, raw_dir):
     reasons = {(source, raw.get("person_id"), raw.get("review_id")): r for source, raw, r in rows}
 
     assert all(reason for *_, reason in rows), "every quarantined row needs a reason"
+    assert not any({"full_name", "email"} & raw.keys() for _, raw, _ in rows), "no personal data"
     assert reasons[("applications", "P9001", None)].startswith("email:")
     assert reasons[("applications", "P9002", None)].startswith("applied_on:")
     assert reasons[("applications", "P9003", None)].startswith("source_channel:")

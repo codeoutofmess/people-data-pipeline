@@ -107,7 +107,9 @@ reviews) and, for each row:
 3. **Checks links** to the other files: an HR record must belong to a hired applicant, pay and
    reviews to an employee, and managers and reviewers must exist.
 
-A failing row goes to `quarantine` with the first reason it failed. Good rows are **upserted**
+A failing row goes to `quarantine` with the first reason it failed. Names and emails are left
+out of the stored copy: the file name and line number are enough to find and fix the row, so the
+quarantine never becomes a second, forgotten copy of personal data. Good rows are **upserted**
 (`INSERT ... ON CONFLICT DO UPDATE`), so rerunning the same files changes nothing. The whole run is
 **one database transaction**: it lands completely or not at all (there is a test that crashes a
 run halfway and checks nothing was saved). Each run's summary is stored in `pipeline_runs` and
@@ -159,8 +161,7 @@ Said plainly, so nobody assumes otherwise:
   adds and updates.
 - **No lockout or rate limiting after failed logins.** They are logged, but nothing stops
   someone from trying again.
-- **The quarantine table keeps raw rows, including names and emails**, and retention does not
-  clean it. `audit_log` and `pipeline_runs` also grow forever.
+- **`quarantine`, `audit_log` and `pipeline_runs` grow forever.** Nothing deletes old rows.
 - **Access control lives only in the API code.** Anyone with direct database access sees
   everything. No Postgres row-level security, no column encryption for pay.
 - **The audit log is not tamper-proof.** It is an ordinary table that the app's database user can change.

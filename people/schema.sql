@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS quarantine (
     run_id     bigint NOT NULL REFERENCES pipeline_runs (run_id),
     source     text NOT NULL,        -- which file, e.g. 'payroll'
     row_number integer NOT NULL,     -- line in the file (header is line 1)
-    raw        jsonb NOT NULL,       -- the row exactly as read
+    raw        jsonb NOT NULL,       -- the row as read, minus name and email
     reason     text NOT NULL
 );
 

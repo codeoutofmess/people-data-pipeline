@@ -24,6 +24,13 @@ Good = tuple[int, dict, BaseModel]
 # (row_number, raw row as read, reason)
 Bad = tuple[int, dict, str]
 
+# Left out of quarantine: the file name and line number are enough to find and fix the row.
+PERSONAL_FIELDS = {"full_name", "email"}
+
+
+def without_personal(raw: dict) -> dict:
+    return {k: v for k, v in raw.items() if k not in PERSONAL_FIELDS}
+
 
 def read_and_validate(path: Path, model: type[BaseModel], key) -> tuple[list[Good], list[Bad]]:
     """Pass 1: check each row's own fields, and drop in-file duplicates (first copy wins)."""
@@ -176,7 +183,7 @@ def run(conn: psycopg.Connection, raw_dir: Path) -> dict:
             cur.executemany(
                 "INSERT INTO quarantine (run_id, source, row_number, raw, reason)"
                 " VALUES (%s, %s, %s, %s, %s)",
-                [(run_id, source, n, Jsonb(raw), reason) for n, raw, reason in bad],
+                [(run_id, source, n, Jsonb(without_personal(raw)), r) for n, raw, r in bad],
             )
             for n, _, reason in bad:
                 log.warning(
