@@ -1,7 +1,8 @@
 """Demo authentication: three seeded users, each with a bearer token.
 
-This is NOT real authentication. There is no login, no expiry and no identity provider.
-A client sends `Authorization: Bearer <token>`. We hash the token and look up the user.
+This is NOT real authentication. There is no login and no identity provider.
+A client sends `Authorization: Bearer <token>`. We hash the token and look up the user,
+and an expired token is treated like a wrong one.
 Only the SHA-256 hash is stored, so reading the database does not reveal anyone's token.
 """
 
@@ -30,22 +31,26 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def seed_users(conn: psycopg.Connection, tokens: dict[str, str], manager_person_id: str) -> None:
-    """Create or replace the three demo users. `tokens` maps username -> token."""
+def seed_users(
+    conn: psycopg.Connection, tokens: dict[str, str], manager_person_id: str, days: int = 30
+) -> None:
+    """Create or replace the three demo users. `tokens` maps username -> token.
+    Each token stops working `days` days from now; run this again with new tokens to rotate."""
     for username, (role, _) in DEMO_USERS.items():
         conn.execute(
             """
-            INSERT INTO api_users (username, role, token_sha256, person_id)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO api_users (username, role, token_sha256, person_id, expires_at)
+            VALUES (%s, %s, %s, %s, now() + make_interval(days => %s))
             ON CONFLICT (username) DO UPDATE
                 SET role = EXCLUDED.role, token_sha256 = EXCLUDED.token_sha256,
-                    person_id = EXCLUDED.person_id
+                    person_id = EXCLUDED.person_id, expires_at = EXCLUDED.expires_at
             """,
             (
                 username,
                 role,
                 hash_token(tokens[username]),
                 manager_person_id if role == "manager" else None,
+                days,
             ),
         )
     conn.commit()
@@ -60,7 +65,8 @@ def tokens_from_env() -> dict[str, str]:
 
 def find_user(conn: psycopg.Connection, token: str) -> User | None:
     row = conn.execute(
-        "SELECT username, role, person_id FROM api_users WHERE token_sha256 = %s",
+        "SELECT username, role, person_id FROM api_users"
+        " WHERE token_sha256 = %s AND expires_at > now()",
         (hash_token(token),),
     ).fetchone()
     return User(**row) if row else None

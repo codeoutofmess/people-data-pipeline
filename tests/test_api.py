@@ -49,6 +49,13 @@ def test_missing_or_wrong_token_is_401_and_logged(client, conn):
     assert "nope" not in str(conn.execute("SELECT * FROM audit_log").fetchall())  # no token kept
 
 
+def test_expired_token_is_refused(client, conn):
+    assert get(client, "/insights/hiring-channels", "viewer_demo").status_code == 200
+    conn.execute("UPDATE api_users SET expires_at = now() - interval '1 second'")
+    conn.commit()
+    assert get(client, "/insights/hiring-channels", "viewer_demo").status_code == 401
+
+
 def test_admin_sees_whole_journey_in_date_order(client, my_report):
     body = get(client, f"/people/{my_report}/journey", "admin_demo").json()
     kinds = {e["event"] for e in body["events"]}

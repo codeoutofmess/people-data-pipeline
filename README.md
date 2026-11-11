@@ -118,7 +118,8 @@ printed by `people report`. Logs are one JSON object per line on stderr.
 ## The API (demo authentication)
 
 Authentication is **demo only**: three seeded users, each with a static bearer token from an
-environment variable. Only a SHA-256 hash of each token is stored.
+environment variable. Only a SHA-256 hash of each token is stored, and each token expires
+(`people seed-users --days N`, default 30). An expired token is refused like a wrong one.
 
 | Endpoint | people_admin | manager | viewer |
 |---|---|---|---|
@@ -141,7 +142,7 @@ Real retention periods depend on law and company policy.
 
 ## Tests and Continuous Integration
 
-`uv run pytest` runs 24 tests against a real Postgres: validation and quarantine reasons,
+`uv run pytest` runs 25 tests against a real Postgres: validation and quarantine reasons,
 idempotent reruns, a failed run leaving no half-loaded data, access control (including "a
 manager cannot see another team's pay"), audit rows, and retention (including "a rerun does not
 refill blanked data").
@@ -155,8 +156,9 @@ workflow token is read-only, and a new push cancels the branch's older run.
 Said plainly, so nobody assumes otherwise:
 
 - **No scheduled pipeline run.** The pipeline only runs when someone types `people run`.
-- **No token expiry or rotation.** Demo tokens are valid until `seed-users` is run with new ones.
-  There is no login, no identity provider, and no multi-factor authentication.
+- **No automatic token rotation.** Tokens expire (30 days by default), but new ones are only
+  issued when someone runs `seed-users` again. There is no login, no identity provider, and no
+  multi-factor authentication.
 - **Rows that disappear from a source file are not deleted** from the database. Each run only
   adds and updates.
 - **No lockout or rate limiting after failed logins.** They are logged, but nothing stops

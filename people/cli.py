@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> None:
 
     seed = sub.add_parser("seed-users", help="create the 3 demo API users from DEMO_TOKEN_* vars")
     seed.add_argument("--manager", default="P0002", help="person_id the demo manager acts as")
+    seed.add_argument("--days", type=int, default=30, help="days until the tokens expire")
 
     ret = sub.add_parser("retention", help="blank rejected candidates' name and email (demo rule)")
     ret.add_argument("--days", type=int, default=180, help="days after the decision")
@@ -49,8 +50,11 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "seed-users":
         tokens = auth.tokens_from_env()
         with db.connect() as conn:
-            auth.seed_users(conn, tokens, args.manager)
-        print(f"Seeded {', '.join(tokens)} (manager acts as {args.manager}).")
+            auth.seed_users(conn, tokens, args.manager, args.days)
+        print(
+            f"Seeded {', '.join(tokens)} (manager acts as {args.manager}),"
+            f" tokens valid for {args.days} days."
+        )
     elif args.command == "retention":
         with db.connect() as conn:
             ids = retention.redact_rejected(conn, args.days, dry_run=args.dry_run)
