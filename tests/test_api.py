@@ -1,3 +1,4 @@
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -147,6 +148,18 @@ def test_employee_sees_who_opened_their_record(client, conn, other_team):
 
 def test_account_without_a_person_has_no_access_log(client):
     assert get(client, "/me/access-log", "viewer_demo").status_code == 403
+
+
+@pytest.mark.parametrize(
+    "sql",
+    ["UPDATE audit_log SET outcome = 'allowed'", "DELETE FROM audit_log", "TRUNCATE audit_log"],
+)
+def test_audit_log_cannot_be_changed_or_deleted(client, conn, sql):
+    client.get("/insights/hiring-channels")  # a failed login, so there is a row to protect
+    with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+        conn.execute(sql)
+    conn.rollback()
+    assert conn.execute("SELECT outcome FROM audit_log").fetchall() == [("denied",)]
 
 
 def test_hiring_channel_insight(client):

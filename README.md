@@ -128,6 +128,9 @@ environment variable. Only a SHA-256 hash of each token is stored, and each toke
 | `GET /me/access-log` (who opened **my** record, when, why) | 403 (no person) | yes | 403 (no person) | yes |
 | `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes | yes |
 
+The database itself refuses to change or delete `audit_log` rows (a trigger), so a bug or a
+careless query in the app cannot rewrite history.
+
 `/me/access-log` lets people see who has looked at their own record, including denied attempts.
 Being able to check builds trust, and it makes misuse more likely to be noticed.
 
@@ -150,7 +153,7 @@ Real retention periods depend on law and company policy.
 
 ## Tests and Continuous Integration
 
-`uv run pytest` runs 28 tests against a real Postgres: validation and quarantine reasons,
+`uv run pytest` runs 31 tests against a real Postgres: validation and quarantine reasons,
 idempotent reruns, a failed run leaving no half-loaded data, access control (including "a
 manager cannot see another team's pay"), audit rows, and retention (including "a rerun does not
 refill blanked data").
@@ -175,7 +178,9 @@ Said plainly, so nobody assumes otherwise:
 - **`quarantine`, `audit_log` and `pipeline_runs` grow forever.** Nothing deletes old rows.
 - **Access control lives only in the API code.** Anyone with direct database access sees
   everything. No Postgres row-level security, no column encryption for pay.
-- **The audit log is not tamper-proof.** It is an ordinary table that the app's database user can change.
+- **The audit log is append-only, not tamper-proof.** A database trigger refuses edits and
+  deletes, but a database owner could remove the trigger. An insert-only database role for the app,
+  or copying the log to a separate system, would close that gap.
 - **No migration tool.** Schema changes mean recreating the database.
 - **No front end, no AI features, no deployment, no pagination, rate limiting or connection pooling.**
 - **The hiring-channel metric is a simple demo**: small samples, no adjustment for team, role or
