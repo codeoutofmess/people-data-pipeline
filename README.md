@@ -28,7 +28,7 @@ flowchart LR
 | Generator | `people/generate.py` | Same seed gives identical files. Appends 5 broken rows per file. |
 | Validation | `people/models.py` | One Pydantic model per file: types, required fields, ranges, allowed values. |
 | Pipeline | `people/pipeline.py` | Validate, quarantine with a reason, upsert, store a run summary. |
-| API | `people/api.py`, `people/auth.py` | Demo tokens, three roles, audit log. |
+| API | `people/api.py`, `people/auth.py` | Demo tokens, four roles, audit log. |
 | Retention | `people/retention.py` | Blanks old rejected candidates' name and email. |
 | Command line | `people/cli.py` | `people init-db / generate / run / report / seed-users / retention` |
 
@@ -41,7 +41,7 @@ brew install postgresql@17 && brew services start postgresql@17
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"   # Homebrew keeps these tools off PATH
 createdb people && createdb people_test
 uv sync
-cp .env.example .env   # then put three long random tokens in it (the file shows how)
+cp .env.example .env   # then put four long random tokens in it (the file shows how)
 uv run pytest
 ```
 
@@ -117,15 +117,19 @@ printed by `people report`. Logs are one JSON object per line on stderr.
 
 ## The API (demo authentication)
 
-Authentication is **demo only**: three seeded users, each with a static bearer token from an
+Authentication is **demo only**: four seeded users, each with a static bearer token from an
 environment variable. Only a SHA-256 hash of each token is stored, and each token expires
 (`people seed-users --days N`, default 30). An expired token is refused like a wrong one.
 
-| Endpoint | people_admin | manager | viewer |
-|---|---|---|---|
-| `GET /people/{id}/journey` (application, hire, pay, reviews in date order) | anyone, with pay | direct reports only, without pay | 403 |
-| `GET /people/{id}/pay` | yes | 403 | 403 |
-| `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes |
+| Endpoint | people_admin | manager | viewer | employee |
+|---|---|---|---|---|
+| `GET /people/{id}/journey` (application, hire, pay, reviews in date order) | anyone, with pay | direct reports only, without pay | 403 | 403 |
+| `GET /people/{id}/pay` | yes | 403 | 403 | 403 |
+| `GET /me/access-log` (who opened **my** record, when, why) | 403 (no person) | yes | 403 (no person) | yes |
+| `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes | yes |
+
+`/me/access-log` lets people see who has looked at their own record, including denied attempts.
+Being able to check builds trust, and it makes misuse more likely to be noticed.
 
 Opening a person's record needs a reason (`?reason=` one of `performance_review`,
 `team_planning`, `hr_query`, `payroll`). A missing or unknown reason gets 422 before any data is
@@ -146,7 +150,7 @@ Real retention periods depend on law and company policy.
 
 ## Tests and Continuous Integration
 
-`uv run pytest` runs 26 tests against a real Postgres: validation and quarantine reasons,
+`uv run pytest` runs 28 tests against a real Postgres: validation and quarantine reasons,
 idempotent reruns, a failed run leaving no half-loaded data, access control (including "a
 manager cannot see another team's pay"), audit rows, and retention (including "a rerun does not
 refill blanked data").
@@ -165,6 +169,7 @@ Said plainly, so nobody assumes otherwise:
   multi-factor authentication.
 - **Rows that disappear from a source file are not deleted** from the database. Each run only
   adds and updates.
+- **Employees cannot read their own record**, only see who opened it.
 - **No lockout or rate limiting after failed logins.** They are logged, but nothing stops
   someone from trying again.
 - **`quarantine`, `audit_log` and `pipeline_runs` grow forever.** Nothing deletes old rows.

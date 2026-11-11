@@ -4,6 +4,7 @@ Access rules (demo):
 - people_admin: every person, including pay.
 - manager: only their direct reports, never pay.
 - viewer: no person data, only the aggregate hiring-channel insight.
+- employee: no one else's data, but can see who opened their own record (/me/access-log).
 Every read of person data, allowed or denied, and every failed login is written to audit_log.
 Opening a person's record needs a stated reason, which is saved in the same audit row.
 """
@@ -152,6 +153,23 @@ def pay(
         (person_id,),
     ).fetchall()
     return {"person_id": person_id, "pay": rows}
+
+
+@app.get("/me/access-log")
+def my_access_log(
+    user: User = Depends(current_user),
+    conn: psycopg.Connection = Depends(get_conn),
+):
+    """Who opened your own record, when, why, and whether they were allowed. Any account linked
+    to a person can see this. Reading your own log is not itself audited."""
+    if not user.person_id:
+        raise HTTPException(403, "This account is not linked to a person")
+    rows = conn.execute(
+        "SELECT at, username, role, action, outcome, reason FROM audit_log"
+        " WHERE person_id = %s ORDER BY id DESC",
+        (user.person_id,),
+    ).fetchall()
+    return {"person_id": user.person_id, "accesses": rows}
 
 
 @app.get("/insights/hiring-channels")

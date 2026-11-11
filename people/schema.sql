@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS quarantine (
 -- Demo API users. Only a SHA-256 hash of each token is stored, never the token itself.
 CREATE TABLE IF NOT EXISTS api_users (
     username     text PRIMARY KEY,
-    role         text NOT NULL CHECK (role IN ('people_admin', 'manager', 'viewer')),
+    role         text NOT NULL CHECK (role IN ('people_admin', 'manager', 'viewer', 'employee')),
     token_sha256 text NOT NULL UNIQUE,
-    person_id    text REFERENCES employees (person_id), -- set for managers: whose reports they see
+    person_id    text REFERENCES employees (person_id), -- managers and employees: who they are
     expires_at   timestamptz NOT NULL                   -- after this, the token is refused
 );
 
