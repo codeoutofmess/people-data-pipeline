@@ -5,7 +5,10 @@ Access rules (demo):
 - manager: only their direct reports, never pay.
 - viewer: no person data, only the aggregate hiring-channel insight.
 Every read of person data, allowed or denied, and every failed login is written to audit_log.
+Opening a person's record needs a stated reason, which is saved in the same audit row.
 """
+
+from typing import Literal
 
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException
@@ -21,6 +24,9 @@ app = FastAPI(
 )
 bearer = HTTPBearer(auto_error=False)  # we raise our own 401 below
 ANONYMOUS = User(username="anonymous", role="none", person_id=None)  # for failed logins
+
+# Why someone is opening a person's record. A fixed list, so the audit log is easy to review.
+Reason = Literal["performance_review", "team_planning", "hr_query", "payroll"]
 
 
 def get_conn():
@@ -56,18 +62,27 @@ def can_read_person(conn: psycopg.Connection, user: User, person_id: str) -> boo
     return False
 
 
-def audit(conn: psycopg.Connection, user: User, action: str, person_id: str | None, allowed: bool):
+def audit(
+    conn: psycopg.Connection,
+    user: User,
+    action: str,
+    person_id: str | None,
+    allowed: bool,
+    reason: str | None = None,
+):
     conn.execute(
-        "INSERT INTO audit_log (username, role, action, person_id, outcome)"
-        " VALUES (%s, %s, %s, %s, %s)",
-        (user.username, user.role, action, person_id, "allowed" if allowed else "denied"),
+        "INSERT INTO audit_log (username, role, action, person_id, outcome, reason)"
+        " VALUES (%s, %s, %s, %s, %s, %s)",
+        (user.username, user.role, action, person_id, "allowed" if allowed else "denied", reason),
     )
 
 
-def check_access(conn, user: User, action: str, person_id: str, allowed: bool) -> None:
+def check_access(
+    conn, user: User, action: str, person_id: str, allowed: bool, reason: Reason
+) -> None:
     """Audit first, then refuse. A denied attempt is logged too, and the answer is the same
     403 whether or not the person exists, so it does not reveal who is in the system."""
-    audit(conn, user, action, person_id, allowed)
+    audit(conn, user, action, person_id, allowed, reason)
     if not allowed:
         raise HTTPException(403, "You are not allowed to read this data")
 
@@ -80,12 +95,14 @@ def health():
 @app.get("/people/{person_id}/journey")
 def journey(
     person_id: str,
+    reason: Reason,
     user: User = Depends(current_user),
     conn: psycopg.Connection = Depends(get_conn),
 ):
     """One person's events in date order: application, decision, start, pay, reviews.
     Pay events are included only for people_admin."""
-    check_access(conn, user, "read_journey", person_id, can_read_person(conn, user, person_id))
+    allowed = can_read_person(conn, user, person_id)
+    check_access(conn, user, "read_journey", person_id, allowed, reason)
 
     person = conn.execute(
         "SELECT person_id, full_name, email, redacted_at FROM people WHERE person_id = %s",
@@ -123,11 +140,12 @@ def journey(
 @app.get("/people/{person_id}/pay")
 def pay(
     person_id: str,
+    reason: Reason,
     user: User = Depends(current_user),
     conn: psycopg.Connection = Depends(get_conn),
 ):
     """Pay history. people_admin only."""
-    check_access(conn, user, "read_pay", person_id, user.role == "people_admin")
+    check_access(conn, user, "read_pay", person_id, user.role == "people_admin", reason)
     rows = conn.execute(
         "SELECT period_start, period_end, gross_amount FROM pay_records"
         " WHERE person_id = %s ORDER BY period_start",

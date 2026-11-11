@@ -65,8 +65,8 @@ uv run people run 2>/dev/null | head -8
 # 4. The API (second terminal): uv run --env-file .env uvicorn people.api:app
 uv run --env-file .env people seed-users
 set -a; source .env; set +a
-curl -s -H "Authorization: Bearer $DEMO_TOKEN_MANAGER" localhost:8000/people/P0009/journey      # 200: direct report, no pay
-curl -s -H "Authorization: Bearer $DEMO_TOKEN_MANAGER" localhost:8000/people/P0150/pay          # 403: other team's pay
+curl -s -H "Authorization: Bearer $DEMO_TOKEN_MANAGER" "localhost:8000/people/P0009/journey?reason=team_planning"  # 200: direct report, no pay
+curl -s -H "Authorization: Bearer $DEMO_TOKEN_MANAGER" "localhost:8000/people/P0150/pay?reason=team_planning"      # 403: other team's pay
 curl -s -H "Authorization: Bearer $DEMO_TOKEN_VIEWER"  localhost:8000/insights/hiring-channels  # 200: aggregate only
 psql people -c "SELECT at, username, action, person_id, outcome FROM audit_log ORDER BY id"
 
@@ -127,8 +127,12 @@ environment variable. Only a SHA-256 hash of each token is stored, and each toke
 | `GET /people/{id}/pay` | yes | 403 | 403 |
 | `GET /insights/hiring-channels` (aggregate, demo metric) | yes | yes | yes |
 
+Opening a person's record needs a reason (`?reason=` one of `performance_review`,
+`team_planning`, `hr_query`, `payroll`). A missing or unknown reason gets 422 before any data is
+read. The reason is saved with the audit row, so a reviewer can ask "was this access justified?".
+
 Every read of person data, allowed or denied, writes a row to `audit_log` (who, role, what,
-which person, when, outcome). A missing or wrong token is logged too, as a `failed_login` row
+which person, when, outcome, reason). A missing or wrong token is logged too, as a `failed_login` row
 (the token itself is never stored), so repeated guessing shows up. A manager asking for someone outside their team gets 403 even if
 that person does not exist, so the API does not reveal who is in the system.
 
@@ -142,7 +146,7 @@ Real retention periods depend on law and company policy.
 
 ## Tests and Continuous Integration
 
-`uv run pytest` runs 25 tests against a real Postgres: validation and quarantine reasons,
+`uv run pytest` runs 26 tests against a real Postgres: validation and quarantine reasons,
 idempotent reruns, a failed run leaving no half-loaded data, access control (including "a
 manager cannot see another team's pay"), audit rows, and retention (including "a rerun does not
 refill blanked data").
